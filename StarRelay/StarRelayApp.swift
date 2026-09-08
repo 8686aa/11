@@ -50,7 +50,7 @@ private func applyOrientation(_ mask: UIInterfaceOrientationMask, force: UIInter
 
 /// 底部导航：Tab 0 = 首页（全部转发功能），Tab 1 = 内置雷达（横屏浏览）
 struct RootTabView: View {
-    @State private var tab = 0
+    @SwiftUI.State private var tab = 0
 
     var body: some View {
         TabView(selection: $tab) {
@@ -99,7 +99,7 @@ private struct RadarWebView: UIViewRepresentable {
 }
 
 struct RadarTabPage: View {
-    @State private var box = WebBox()
+    @SwiftUI.State private var box = WebBox()
 
     var body: some View {
         VStack(spacing: 0) {

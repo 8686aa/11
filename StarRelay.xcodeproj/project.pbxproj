@@ -1,0 +1,310 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B00000000000000000000001 /* StarRelayApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000002 /* StarRelayApp.swift */; };
+		B00000000000000000000002 /* State.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000003 /* State.swift */; };
+		B00000000000000000000003 /* ServerPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000004 /* ServerPreset.swift */; };
+		B00000000000000000000004 /* IpPacket.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000005 /* IpPacket.swift */; };
+		B00000000000000000000005 /* FlowHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000006 /* FlowHub.swift */; };
+		B00000000000000000000006 /* Socks5Server.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000007 /* Socks5Server.swift */; };
+		B00000000000000000000007 /* WsUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000008 /* WsUploader.swift */; };
+		B00000000000000000000008 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000009 /* AppModel.swift */; };
+		B00000000000000000000009 /* TopologyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000000A /* TopologyView.swift */; };
+		B0000000000000000000000A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000000B /* ContentView.swift */; };
+		B0000000000000000000000B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000000C /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F00000000000000000000001 /* StarRelay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StarRelay.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F00000000000000000000002 /* StarRelayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StarRelayApp.swift; sourceTree = "<group>"; };
+		F00000000000000000000003 /* State.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = State.swift; sourceTree = "<group>"; };
+		F00000000000000000000004 /* ServerPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerPreset.swift; sourceTree = "<group>"; };
+		F00000000000000000000005 /* IpPacket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IpPacket.swift; sourceTree = "<group>"; };
+		F00000000000000000000006 /* FlowHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowHub.swift; sourceTree = "<group>"; };
+		F00000000000000000000007 /* Socks5Server.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Socks5Server.swift; sourceTree = "<group>"; };
+		F00000000000000000000008 /* WsUploader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WsUploader.swift; sourceTree = "<group>"; };
+		F00000000000000000000009 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		F0000000000000000000000A /* TopologyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopologyView.swift; sourceTree = "<group>"; };
+		F0000000000000000000000B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		F0000000000000000000000C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F0000000000000000000000D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A0000000000000000000000F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A00000000000000000000003 = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000005 /* StarRelay */,
+				A00000000000000000000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A00000000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F00000000000000000000001 /* StarRelay.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000005 /* StarRelay */ = {
+			isa = PBXGroup;
+			children = (
+				F00000000000000000000002 /* StarRelayApp.swift */,
+				A00000000000000000000006 /* Core */,
+				A00000000000000000000007 /* UI */,
+				F0000000000000000000000C /* Assets.xcassets */,
+				F0000000000000000000000D /* Info.plist */,
+			);
+			path = StarRelay;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000006 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				F00000000000000000000003 /* State.swift */,
+				F00000000000000000000004 /* ServerPreset.swift */,
+				F00000000000000000000005 /* IpPacket.swift */,
+				F00000000000000000000006 /* FlowHub.swift */,
+				F00000000000000000000007 /* Socks5Server.swift */,
+				F00000000000000000000008 /* WsUploader.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000007 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				F00000000000000000000009 /* AppModel.swift */,
+				F0000000000000000000000A /* TopologyView.swift */,
+				F0000000000000000000000B /* ContentView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A00000000000000000000002 /* StarRelay */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000009 /* Build configuration list for PBXNativeTarget "StarRelay" */;
+			buildPhases = (
+				A0000000000000000000000E /* Sources */,
+				A0000000000000000000000F /* Frameworks */,
+				A00000000000000000000010 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = StarRelay;
+			productName = StarRelay;
+			productReference = F00000000000000000000001 /* StarRelay.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A00000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					A00000000000000000000002 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = A00000000000000000000008 /* Build configuration list for PBXProject "StarRelay" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A00000000000000000000003;
+			productRefGroup = A00000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A00000000000000000000002 /* StarRelay */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A00000000000000000000010 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B0000000000000000000000B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A0000000000000000000000E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B00000000000000000000001 /* StarRelayApp.swift in Sources */,
+				B00000000000000000000002 /* State.swift in Sources */,
+				B00000000000000000000003 /* ServerPreset.swift in Sources */,
+				B00000000000000000000004 /* IpPacket.swift in Sources */,
+				B00000000000000000000005 /* FlowHub.swift in Sources */,
+				B00000000000000000000006 /* Socks5Server.swift in Sources */,
+				B00000000000000000000007 /* WsUploader.swift in Sources */,
+				B00000000000000000000008 /* AppModel.swift in Sources */,
+				B00000000000000000000009 /* TopologyView.swift in Sources */,
+				B0000000000000000000000A /* ContentView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A0000000000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A0000000000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A0000000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = StarRelay/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tzsp.starrelay;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A0000000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = StarRelay/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tzsp.starrelay;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A00000000000000000000008 /* Build configuration list for PBXProject "StarRelay" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A0000000000000000000000A /* Debug */,
+				A0000000000000000000000B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00000000000000000000009 /* Build configuration list for PBXNativeTarget "StarRelay" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A0000000000000000000000C /* Debug */,
+				A0000000000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A00000000000000000000001 /* Project object */;
+}

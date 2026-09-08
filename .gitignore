@@ -1,0 +1,10 @@
+# Xcode / macOS
+DerivedData/
+build/
+xcuserdata/
+*.xcuserstate
+.DS_Store
+
+# 产物
+*.ipa
+*.zip

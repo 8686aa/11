@@ -1,0 +1,237 @@
+import Foundation
+import SwiftUI
+
+/// 后台转发器连接测速探针：测 ws 握手延迟（最多 timeout 秒），完成后回调 (ok, ms)。
+private final class WsProbe: NSObject, URLSessionWebSocketDelegate {
+    private let url: URL
+    private let onDone: (Bool, Int64) -> Void
+    private let started = Date()
+    private var session: URLSession?
+    private var task: URLSessionWebSocketTask?
+    private var timeoutWork: DispatchWorkItem?
+    private let lock = NSLock()
+    private var finished = false
+
+    init(url: URL, onDone: @escaping (Bool, Int64) -> Void) {
+        self.url = url
+        self.onDone = onDone
+        super.init()
+    }
+
+    func run(timeout: TimeInterval = 5) {
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = timeout
+        let q = OperationQueue()
+        q.maxConcurrentOperationCount = 1
+        let s = URLSession(configuration: config, delegate: self, delegateQueue: q)
+        session = s
+        let t = s.webSocketTask(with: url)
+        task = t
+        t.resume()
+        let work = DispatchWorkItem { [weak self] in self?.finish(ok: false) }
+        timeoutWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: work)
+    }
+
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
+                    didOpenWithProtocol protocol: String?) {
+        finish(ok: true)
+    }
+
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
+                    didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        finish(ok: false)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        finish(ok: false)
+    }
+
+    private func finish(ok: Bool) {
+        lock.lock()
+        if finished { lock.unlock(); return }
+        finished = true
+        lock.unlock()
+        timeoutWork?.cancel()
+        task?.cancel()
+        session?.invalidateAndCancel()
+        let ms = Int64(Date().timeIntervalSince(started) * 1000)
+        onDone(ok, ms)
+    }
+}
+
+/// 主界面状态/编排：等效安卓 MainActivity（服务器下拉 + 自动测速 + 启停）。
+final class AppModel: ObservableObject {
+    @Published var servers: [ServerPreset] = defaultServers()
+    @Published var selectedIndex = 0
+    @Published var tokenText = ""
+    @Published var portText = "1080"
+    @Published var uiTick = 0               // 每秒/状态变更自增，驱动 UI 刷新
+
+    private var socks: Socks5Server?
+    private var uploader: WsUploader?
+    private var probe: WsProbe?
+    private var testTimer: Timer?
+
+    var running: Bool { State.shared.running }
+
+    init() {
+        let d = UserDefaults.standard
+        tokenText = d.string(forKey: "token") ?? ""
+        portText = d.string(forKey: "port") ?? "1080"
+        if let name = d.string(forKey: "serverName"),
+           let i = servers.firstIndex(where: { $0.name == name }) {
+            selectedIndex = i
+        }
+    }
+
+    // MARK: - 每秒 UI tick（等效安卓 poller）
+    func onSecondTick() {
+        FlowHub.shared.tick()
+        // WiFi 变化时及时刷新提示里的本机 IP
+        if !running || State.shared.localIp.isEmpty {
+            State.shared.setLocalIp(localIPAddress())
+        }
+        uiTick &+= 1
+    }
+
+    func viewDidAppear() {
+        State.shared.setLocalIp(localIPAddress())
+        scheduleAutoTest(immediate: true)
+    }
+
+    func viewDidDisappear() {
+        testTimer?.invalidate()
+        testTimer = nil
+    }
+
+    // MARK: - 服务器下拉
+    func selectServer(_ i: Int) {
+        guard !running, i >= 0, i < servers.count else { return }
+        selectedIndex = i
+        State.shared.log("选择服务器: \(servers[i].label())")
+        uiTick &+= 1
+    }
+
+    func currentServer() -> ServerPreset {
+        let i = min(max(selectedIndex, 0), servers.count - 1)
+        return servers[i]
+    }
+
+    /// 状态行使用的延迟文案：测速中（未出结果）→ 具体延迟 → 离线
+    func latLabel() -> String {
+        let p = currentServer()
+        if p.latMs >= 0 { return formatLat(p.latMs) }
+        return probe == nil ? "离线" : "测速中…"
+    }
+
+    // MARK: - 自动测速（10s 循环，测当前选中项，结果挂在项名上）等效安卓 testSelectedServer
+    func scheduleAutoTest(immediate: Bool) {
+        testTimer?.invalidate()
+        let t = Timer(timeInterval: 10, repeats: true) { [weak self] _ in
+            self?.autoTest()
+        }
+        RunLoop.main.add(t, forMode: .common)
+        testTimer = t
+        if immediate {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.autoTest() }
+        }
+    }
+
+    func autoTest() {
+        guard probe == nil else { return }
+        let preset = currentServer()
+        let urlStr = preset.url
+        guard let u = URL(string: urlStr) else {
+            preset.latMs = -1
+            State.shared.setLatMs(-1)
+            uiTick &+= 1
+            return
+        }
+        State.shared.log("[测速] \(preset.name) \(urlStr) …")
+        let idx = selectedIndex
+        let p = WsProbe(url: u) { [weak self] ok, ms in
+            DispatchQueue.main.async { self?.applyTest(ok: ok, ms: ms, index: idx) }
+        }
+        probe = p
+        p.run()
+    }
+
+    private func applyTest(ok: Bool, ms: Int64, index: Int) {
+        probe = nil
+        guard index < servers.count else { return }
+        let preset = servers[index]
+        preset.latMs = ok ? ms : -1
+        State.shared.setLatMs(ok ? ms : -1)
+        if ok {
+            State.shared.log("[测速] \(preset.name) \(preset.url) \(ms)ms")
+        } else {
+            State.shared.log("[测速] \(preset.name) \(preset.url) 失败(离线)")
+        }
+        uiTick &+= 1
+    }
+
+    // MARK: - 启停（等效安卓 doStart / doStop）
+    func start() {
+        guard !running else { return }
+        let preset = currentServer()
+        let port = Int(portText.trimmingCharacters(in: .whitespaces)) ?? 1080
+        let token = tokenText.trimmingCharacters(in: .whitespaces)
+
+        UserDefaults.standard.set(preset.name, forKey: "serverName")
+        UserDefaults.standard.set(token, forKey: "token")
+        UserDefaults.standard.set(String(port), forKey: "port")
+
+        State.shared.setListenPort(port)
+        State.shared.setLocalIp(localIPAddress())
+        FlowHub.shared.clear()
+        State.shared.log("=== 启动（转发器 \(preset.url)，端口 \(port)）===")
+
+        let up = WsUploader(urlString: preset.url, token: token) { State.shared.log($0) }
+        uploader = up
+        up.start()
+
+        let s = Socks5Server(port: port,
+                             onPacket: { upPkt, proto, srcIp, sport, dstIp, dport, payload in
+            if upPkt {
+                State.shared.addUp(bytes: payload.count)
+            } else {
+                State.shared.addDown(bytes: payload.count)
+            }
+            // 拓扑：客户端 = SOCKS5 调用方(小火箭)，对端 = 它访问的来源IP
+            let client = upPkt ? srcIp : dstIp
+            let remote = upPkt ? dstIp : srcIp
+            let rport = upPkt ? dport : sport
+            FlowHub.shared.report(phone: client, remoteIp: remote, remotePort: rport,
+                                  up: upPkt, bytes: payload.count)
+            let pkt = IpPacket.wrap(proto: proto, srcIp: srcIp, dstIp: dstIp,
+                                    sport: sport, dport: dport, payload: payload)
+            up.enqueueIp(pkt)
+        },
+                             onClientActive: { FlowHub.shared.touchClient($0) },
+                             log: { State.shared.log($0) })
+        socks = s
+        if s.start() {
+            State.shared.setRunning(true)
+            State.shared.log("提示：小火箭 SOCKS5 = \(State.shared.localIp):\(port)")
+        } else {
+            State.shared.setRunning(false)
+            up.stop()
+            uploader = nil
+        }
+        uiTick &+= 1
+    }
+
+    func stop() {
+        guard running else { return }
+        uploader?.stop()
+        socks?.stop()
+        uploader = nil
+        socks = nil
+        State.shared.setRunning(false)
+        State.shared.setWsState("未连接")
+        FlowHub.shared.clear()
+        State.shared.log("=== 已停止 ===")
+        uiTick &+= 1
+    }
+}

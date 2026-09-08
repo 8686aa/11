@@ -1,0 +1,35 @@
+name: Build unsigned ipa
+
+on:
+  workflow_dispatch:          # 仓库 Actions 页手动点 "Run workflow"
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: macos-15         # GitHub 托管的 macOS 机器，自带 Xcode
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build without codesigning
+        run: |
+          xcodebuild -project StarRelay.xcodeproj \
+                     -scheme StarRelay \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     -derivedDataPath build \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     build
+
+      - name: Pack unsigned .ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/StarRelay.app Payload/
+          zip -qry StarRelay-unsigned.ipa Payload
+
+      - name: Upload ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: starrelay-unsigned-ipa
+          path: StarRelay-unsigned.ipa

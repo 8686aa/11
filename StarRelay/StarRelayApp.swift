@@ -64,7 +64,8 @@ struct RootTabView: View {
         }
         .onChange(of: tab) { v in
             if v == 1 {
-                applyOrientation(.landscape, force: .landscapeRight)
+                // 内置雷达：跟随设备方向自由旋转（横竖都行，不锁死）
+                applyOrientation(.allButUpsideDown, force: nil)
             } else {
                 applyOrientation(.portrait, force: .portrait)
             }
@@ -132,7 +133,8 @@ struct RadarTabPage: View {
         }
         .background(Color(red: 18 / 255, green: 22 / 255, blue: 32 / 255))
         .onAppear {
-            applyOrientation(.landscape, force: .landscapeRight)
+            // 跟随设备方向旋转；若设备正横放则 attemptRotation 会立即转横
+            applyOrientation(.allButUpsideDown, force: nil)
         }
         .onDisappear {
             applyOrientation(.portrait, force: .portrait)

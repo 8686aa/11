@@ -134,7 +134,10 @@ final class WsUploader: NSObject, URLSessionWebSocketDelegate {
 
         lock.lock(); let opened = connected; let st = stopFlag; lock.unlock()
         if !opened {
-            if !st { State.shared.setWsState("连接失败") }
+            if !st {
+                State.shared.setWsState("连接失败")
+                log("[ws] 连接失败：6 秒内未完成握手 → 检查①星辰雷达的「本地网络」权限 ②手机与转发器同网段 ③服务器地址:\(url.absoluteString)")
+            }
             return false
         }
 

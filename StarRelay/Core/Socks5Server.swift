@@ -182,11 +182,17 @@ final class Socks5Server {
         let report = onPacket
 
         // ---- 双向泵送（各占一线程循环转发 + 上报；信号量等待两端结束） ----
+        // poll 超时 + 服务停止检查，保证 stop() 后线程能退出而不是永久阻塞在 read。
         let upSema = DispatchSemaphore(value: 0)
         let downSema = DispatchSemaphore(value: 0)
+        let runningRef = { [weak self] in self?.isRunning() ?? false }
         Thread.detachNewThread {
             var buf = [UInt8](repeating: 0, count: 16384)
             while true {
+                if !pollReadable(c, 800) {
+                    if !runningRef() { break }
+                    continue
+                }
                 let n = buf.withUnsafeMutableBytes { read(c, $0.baseAddress, 16384) }
                 if n <= 0 { break }
                 let chunk = Data(buf[0..<Int(n)])
@@ -199,6 +205,10 @@ final class Socks5Server {
         Thread.detachNewThread {
             var buf = [UInt8](repeating: 0, count: 16384)
             while true {
+                if !pollReadable(tfd, 800) {
+                    if !runningRef() { break }
+                    continue
+                }
                 let n = buf.withUnsafeMutableBytes { read(tfd, $0.baseAddress, 16384) }
                 if n <= 0 { break }
                 let chunk = Data(buf[0..<Int(n)])
@@ -243,7 +253,19 @@ final class Socks5Server {
         // 阻塞读 TCP 控制连接，断开即收尾并关闭该控制 fd（等效安卓尾部循环）
         Thread.detachNewThread { [weak self, weak assoc] in
             var one = [UInt8](repeating: 0, count: 1)
-            while one.withUnsafeMutableBytes({ read(c, $0.baseAddress, 1) }) > 0 {}
+            while true {
+                if !pollReadable(c, 500) {
+                    // 服务已停止（stop() 已代为关闭 fd/assoc），此处只做记录摘除
+                    if !(self?.isRunning() ?? false) {
+                        self?.lock.lock()
+                        self?.assocs.removeValue(forKey: "\(clientIp):\(clientPort)")
+                        self?.lock.unlock()
+                        return
+                    }
+                    continue
+                }
+                if one.withUnsafeMutableBytes({ read(c, $0.baseAddress, 1) }) <= 0 { break }
+            }
             assoc?.close()
             close(c)
             self?.lock.lock()
@@ -266,11 +288,38 @@ fileprivate final class Socks5UdpAssociate {
     private var closed = false
     private var lastClient: sockaddr_in?
     private var relays: [String: Socks5UdpRelay] = [:]
+    private let relayMax = 48                      // 每客户端 UDP 目标数上限，防线程/fd 无限增长
+    let relayIdleSec: TimeInterval = 10            // relay 无流量自退秒数
 
     init(serverSock: Int32, clientIp: String, onPacket: @escaping SocksPacketHandler) {
         self.serverSock = serverSock
         self.clientIp = clientIp
         self.onPacket = onPacket
+    }
+
+    /// 清理超过 idleSec 无流量的 relay，返回清理数量（防长期会话累积）
+    @discardableResult
+    private func sweepIdleRelays() -> Int {
+        lock.lock()
+        let now = Date().timeIntervalSince1970
+        let stale = relays.filter { now - $0.value.lastActive() > relayIdleSec }.map { $0.key }
+        var removed: [Socks5UdpRelay] = []
+        for k in stale {
+            if let r = relays.removeValue(forKey: k) { removed.append(r) }
+        }
+        lock.unlock()
+        removed.forEach { $0.close() }
+        return removed.count
+    }
+
+    /// replyLoop 空闲自退时把自身从表中移除
+    fileprivate func relayIdle(_ r: Socks5UdpRelay) {
+        lock.lock()
+        var key: String?
+        for (k, v) in relays where v === r { key = k; break }
+        if let k = key { relays.removeValue(forKey: k) }
+        lock.unlock()
+        r.close()
     }
 
     func isClosed() -> Bool {
@@ -280,11 +329,13 @@ fileprivate final class Socks5UdpAssociate {
 
     func close() {
         lock.lock()
+        if closed { lock.unlock(); return }        // 幂等：stop 与控制线程可能并发 close
         closed = true
         let rl = Array(relays.values)
         relays.removeAll()
+        let s = serverSock
         lock.unlock()
-        Darwin.close(serverSock)      // 本方法名遮蔽全局 close(unistd)，需显式模块前缀
+        Darwin.close(s)                            // 本方法名遮蔽全局 close(unistd)，需显式模块前缀
         rl.forEach { $0.close() }
     }
 
@@ -293,10 +344,11 @@ fileprivate final class Socks5UdpAssociate {
         return lastClient
     }
 
-    /// 阻塞接收 iOS 发来的 UDP 数据报
+    /// 阻塞接收 iOS 发来的 UDP 数据报（poll 超时轮询，close 后可及时退出线程）
     func runRecvLoop() {
         var buf = [UInt8](repeating: 0, count: 65535)
         while !isClosed() {
+            if !pollReadable(serverSock, 1000) { continue }
             var from = sockaddr_storage()
             var fromLen = sockaddr_len()
             let n = buf.withUnsafeMutableBytes { rb -> ssize_t in
@@ -306,10 +358,7 @@ fileprivate final class Socks5UdpAssociate {
                     }
                 }
             }
-            if n <= 0 {
-                if !isClosed() { Thread.sleep(forTimeInterval: 0.02) }
-                continue
-            }
+            if n <= 0 { continue }
             guard let sin = sockaddrIn(from), ipString(sin) == clientIp else { continue }
             lock.lock()
             lastClient = sin
@@ -353,6 +402,16 @@ fileprivate final class Socks5UdpAssociate {
         lock.lock()
         var relay = relays[key]
         if relay == nil {
+            // 超上限先清理空闲 relay，仍满则丢弃新目标（保线程数可控，不崩溃）
+            if relays.count >= relayMax {
+                lock.unlock()
+                _ = sweepIdleRelays()
+                lock.lock()
+            }
+            if relays.count >= relayMax {
+                lock.unlock()
+                return
+            }
             let r = Socks5UdpRelay(associate: self, targetHost: targetHost, targetPort: dport)
             relay = r
             relays[key] = r
@@ -378,11 +437,23 @@ fileprivate final class Socks5UdpRelay {
     private var targetSock4: sockaddr_in?
     private var prepared = false
     private var failed = false
+    private var _lastActive = Date().timeIntervalSince1970
 
     init(associate: Socks5UdpAssociate, targetHost: String, targetPort: Int) {
         self.associate = associate
         self.targetHost = targetHost
         self.targetPort = targetPort
+    }
+
+    func lastActive() -> TimeInterval {
+        lock.lock(); defer { lock.unlock() }
+        return _lastActive
+    }
+
+    private func touchActive() {
+        lock.lock()
+        _lastActive = Date().timeIntervalSince1970
+        lock.unlock()
     }
 
     func close() {
@@ -420,6 +491,7 @@ fileprivate final class Socks5UdpRelay {
 
     func send(_ payload: Data) {
         guard !payload.isEmpty else { return }
+        touchActive()
         lock.lock()
         guard let sin = targetSock4 else { lock.unlock(); return }
         let s = fd
@@ -437,13 +509,25 @@ fileprivate final class Socks5UdpRelay {
     }
 
     /// 回包线程：读目标回复 → 封装 SOCKS UDP 头 → 发回 iOS（lastClient）
+    /// poll 超时轮询：close 后/空闲超过 relayIdleSec 时自行退出并从表中移除
     private func replyLoop() {
         var buf = [UInt8](repeating: 0, count: 65535)
+        var idleExit = false
         while true {
             lock.lock()
             if fd < 0 { lock.unlock(); break }
             let s = fd
             lock.unlock()
+            if !pollReadable(s, 1000) {
+                lock.lock(); let f = fd; lock.unlock()
+                if f < 0 { break }                              // 已被 close
+                if associate.isClosed() { break }               // 会话整体关闭
+                if Date().timeIntervalSince1970 - lastActive() > associate.relayIdleSec {
+                    idleExit = true                             // 空闲自退
+                    break
+                }
+                continue
+            }
             var from = sockaddr_storage()
             var fromLen = sockaddr_len()
             let n = buf.withUnsafeMutableBytes { rb -> ssize_t in
@@ -455,9 +539,9 @@ fileprivate final class Socks5UdpRelay {
             }
             if n <= 0 {
                 if associate.isClosed() { break }
-                Thread.sleep(forTimeInterval: 0.02)
                 continue
             }
+            touchActive()
             // 回包封装仅支持 IPv4 来源目标（等效安卓 ra.size != 4 则跳过）
             guard let src = sockaddrIn(from) else { continue }
             let ra = ipv4Bytes(src)
@@ -490,6 +574,7 @@ fileprivate final class Socks5UdpRelay {
                 }
             }
         }
+        if idleExit { associate.relayIdle(self) }   // 空闲自退：把自己从会话表中摘除
     }
 }
 
@@ -571,6 +656,13 @@ private func portOf(_ fd: Int32) -> Int {
     }
     guard r == 0, let sin = sockaddrIn(ss) else { return 0 }
     return Int(sin.sin_port.bigEndian)
+}
+
+/// fd 可读性轮询（毫秒超时）；用于把阻塞读改成可中断循环
+private func pollReadable(_ fd: Int32, _ timeoutMs: Int) -> Bool {
+    var p = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+    let r = poll(&p, 1, Int32(timeoutMs))
+    return r > 0 && (p.revents & Int16(POLLIN)) != 0
 }
 
 /// TCP 非阻塞连接（poll 8s 超时）

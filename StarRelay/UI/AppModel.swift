@@ -125,8 +125,9 @@ final class AppModel: ObservableObject {
         return probe == nil ? "离线" : "测速中…"
     }
 
-    // MARK: - 自动测速（10s 循环，测当前选中项，结果挂在项名上）等效安卓 testSelectedServer
+    // MARK: - 自动测速（仅未启动时循环：10s 测当前选中项，结果挂在项名上；等效安卓 testSelectedServer）
     func scheduleAutoTest(immediate: Bool) {
+        guard !running else { return }
         testTimer?.invalidate()
         let t = Timer(timeInterval: 10, repeats: true) { [weak self] _ in
             self?.autoTest()
@@ -139,7 +140,7 @@ final class AppModel: ObservableObject {
     }
 
     func autoTest() {
-        guard probe == nil else { return }
+        guard !running, probe == nil else { return }
         let preset = currentServer()
         let urlStr = preset.url
         guard let u = URL(string: urlStr) else {
@@ -148,7 +149,6 @@ final class AppModel: ObservableObject {
             uiTick &+= 1
             return
         }
-        State.shared.log("[测速] \(preset.name) \(urlStr) …")
         let idx = selectedIndex
         let p = WsProbe(url: u) { [weak self] ok, ms in
             DispatchQueue.main.async { self?.applyTest(ok: ok, ms: ms, index: idx) }
@@ -163,11 +163,6 @@ final class AppModel: ObservableObject {
         let preset = servers[index]
         preset.latMs = ok ? ms : -1
         State.shared.setLatMs(ok ? ms : -1)
-        if ok {
-            State.shared.log("[测速] \(preset.name) \(preset.url) \(ms)ms")
-        } else {
-            State.shared.log("[测速] \(preset.name) \(preset.url) 失败(离线)")
-        }
         uiTick &+= 1
     }
 
@@ -214,6 +209,8 @@ final class AppModel: ObservableObject {
         if s.start() {
             State.shared.setRunning(true)
             State.shared.setLastError("")
+            testTimer?.invalidate()
+            testTimer = nil
             State.shared.log("提示：小火箭 SOCKS5 = \(State.shared.localIp):\(port)")
         } else {
             State.shared.setRunning(false)
@@ -235,6 +232,7 @@ final class AppModel: ObservableObject {
         State.shared.setWsState("未连接")
         FlowHub.shared.clear()
         State.shared.log("=== 已停止 ===")
+        scheduleAutoTest(immediate: true)   // 停止后恢复自动测速
         uiTick &+= 1
     }
 }

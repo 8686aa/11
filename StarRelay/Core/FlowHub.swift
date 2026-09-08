@@ -48,7 +48,10 @@ final class FlowHub {
         guard !phone.isEmpty else { return }
         let now = Date().timeIntervalSince1970
         lock.lock()
-        if phones[phone] == nil { phones[phone] = PhoneInfo(now: now) }
+        if phones[phone] == nil {
+            phones[phone] = PhoneInfo(now: now)
+            State.shared.log("客户端接入: \(phone)")
+        }
         phones[phone]?.lastSeen = now
         lock.unlock()
     }
@@ -63,6 +66,7 @@ final class FlowHub {
         if let p = phones[phone] { info = p } else {
             info = PhoneInfo(now: now)
             phones[phone] = info
+            State.shared.log("客户端接入: \(phone)")
         }
         info.lastSeen = now
         let e = info.edges[key] ?? Edge()

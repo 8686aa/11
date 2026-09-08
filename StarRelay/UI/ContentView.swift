@@ -20,6 +20,7 @@ struct ContentView: View {
             serverHeader
             tokenPortRow
             controlRow
+            frontTip
             hintText
             statusText
             errorLine
@@ -119,9 +120,17 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - 前台常驻提示
+    private var frontTip: some View {
+        Text("注意：本 App 必须保持前台运行 — 切勿切到后台或锁屏，否则转发中断")
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(warn)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     // MARK: - 提示 / 状态
     private var hintText: some View {
-        Text("iOS 小火箭 SOCKS5：服务器 = \(State.shared.localIp.isEmpty ? "未获取" : State.shared.localIp)，端口 = \(State.shared.listenPort)（同一 WiFi，保持本 App 前台亮屏）")
+        Text("iOS 小火箭 SOCKS5：服务器 = \(State.shared.localIp.isEmpty ? "未获取" : State.shared.localIp)，端口 = \(State.shared.listenPort)（需同一 WiFi）")
             .font(.system(size: 11))
             .foregroundColor(txtSub)
             .frame(maxWidth: .infinity, alignment: .leading)

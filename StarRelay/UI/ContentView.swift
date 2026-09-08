@@ -13,16 +13,18 @@ struct ContentView: View {
     private let txtSub = Color(red: 0.62, green: 0.66, blue: 0.72)
     private let fieldBg = Color(white: 0.17)
     private let primary = Color(red: 64 / 255, green: 128 / 255, blue: 255 / 255)
+    private let warn = Color(red: 1.0, green: 0.56, blue: 0.38)
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 7) {
             serverHeader
             tokenPortRow
             controlRow
             hintText
             statusText
+            errorLine
             chart
-            logView
+            logCard
         }
         .padding(10)
         .background(bg)
@@ -136,33 +138,62 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    // MARK: - 错误行（最近一次失败原因，成功/停止后消失）
+    private var errorLine: some View {
+        let err = State.shared.lastError
+        return Group {
+            if !err.isEmpty {
+                Text("!  \(err)")
+                    .font(.system(size: 11))
+                    .foregroundColor(warn)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(6)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(warn.opacity(0.12)))
+            }
+        }
+    }
+
     // MARK: - 拓扑图（占最大空间）
     private var chart: some View {
         TopologyView()
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 130)
+            .frame(minHeight: 110)
             .layoutPriority(1)
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(RoundedRectangle(cornerRadius: 10)
                 .stroke(Color.white.opacity(0.08), lineWidth: 1))
     }
 
-    // MARK: - 日志
-    private var logView: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: true) {
-                Text(State.shared.tail(maxLines: 300))
-                    .font(.system(size: 9.5, design: .monospaced))
-                    .foregroundColor(Color(red: 0.72, green: 0.9, blue: 0.78))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .id("logBottom")
+    // MARK: - 日志（带标题，固定最小高度保证可见）
+    private var logCard: some View {
+        VStack(spacing: 4) {
+            HStack {
+                Text("运行日志")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(txtSub)
+                Spacer()
+                Text("启动后此处实时输出")
+                    .font(.system(size: 9.5))
+                    .foregroundColor(txtSub.opacity(0.6))
             }
-            .padding(6)
-            .frame(maxHeight: 150)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color(white: 0.09)))
-            .onChange(of: model.uiTick) { _ in
-                withAnimation(.none) {
-                    proxy.scrollTo("logBottom", anchor: .bottom)
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    Text(State.shared.tail(maxLines: 300))
+                        .font(.system(size: 9.5, design: .monospaced))
+                        .foregroundColor(Color(red: 0.72, green: 0.9, blue: 0.78))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .id("logBottom")
+                }
+                .padding(6)
+                .frame(maxHeight: 150)
+                .frame(minHeight: 70)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color(white: 0.12)))
+                .overlay(RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1))
+                .onChange(of: model.uiTick) { _ in
+                    withAnimation(.none) {
+                        proxy.scrollTo("logBottom", anchor: .bottom)
+                    }
                 }
             }
         }

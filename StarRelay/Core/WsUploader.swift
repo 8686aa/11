@@ -136,6 +136,7 @@ final class WsUploader: NSObject, URLSessionWebSocketDelegate {
         if !opened {
             if !st {
                 State.shared.setWsState("连接失败")
+                State.shared.setLastError("WS 连接失败：转发器 \(url.absoluteString) 不可达（6s 超时）")
                 log("[ws] 连接失败：6 秒内未完成握手 → 检查①星辰雷达的「本地网络」权限 ②手机与转发器同网段 ③服务器地址:\(url.absoluteString)")
             }
             return false
@@ -265,6 +266,7 @@ final class WsUploader: NSObject, URLSessionWebSocketDelegate {
         guard current else { return }
         if let e = error {
             State.shared.setWsState("连接失败")
+            State.shared.setLastError("WS 连接失败：\(e.localizedDescription)")
             log("[ws] 连接异常: \(e.localizedDescription)")
         }
     }

@@ -49,7 +49,7 @@ final class Socks5Server {
             }
         }
         guard br == 0, listen(fd, 64) == 0 else {
-            log("SOCKS5 启动失败: 端口 \(port) 可能被占用")
+            log("SOCKS5 启动失败: bind/listen 端口 \(port) 失败 errno=\(errno) (\(String(cString: strerror(errno))))")
             close(fd)
             return false
         }

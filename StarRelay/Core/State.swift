@@ -39,6 +39,11 @@ final class State {
     var latMs: Int64 { lock.lock(); defer { lock.unlock() }; return _latMs }
     func setLatMs(_ v: Int64) { lock.lock(); _latMs = v; lock.unlock() }
 
+    private var _lastError = ""
+    /// 最近一次错误（界面错误行显示，启动成功/停止时清空）
+    var lastError: String { lock.lock(); defer { lock.unlock() }; return _lastError }
+    func setLastError(_ v: String) { lock.lock(); _lastError = v; lock.unlock() }
+
     // MARK: - 流量计数
     struct Stats {
         var upPackets: Int64 = 0

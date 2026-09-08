@@ -213,9 +213,11 @@ final class AppModel: ObservableObject {
         socks = s
         if s.start() {
             State.shared.setRunning(true)
+            State.shared.setLastError("")
             State.shared.log("提示：小火箭 SOCKS5 = \(State.shared.localIp):\(port)")
         } else {
             State.shared.setRunning(false)
+            State.shared.setLastError("SOCKS5 未启动：端口 \(port) 监听失败，请改端口或看下方日志的 errno")
             up.stop()
             uploader = nil
         }
@@ -229,6 +231,7 @@ final class AppModel: ObservableObject {
         uploader = nil
         socks = nil
         State.shared.setRunning(false)
+        State.shared.setLastError("")
         State.shared.setWsState("未连接")
         FlowHub.shared.clear()
         State.shared.log("=== 已停止 ===")

@@ -8,8 +8,8 @@ import Darwin
 // ============================================================================
 
 /// (up, proto, srcIp, sport, dstIp, dport, payload) —— up=true 上行(客户端->目标)
-fileprivate typealias SocksPacketHandler = (_ up: Bool, _ proto: Int, _ srcIp: String, _ sport: Int,
-                                            _ dstIp: String, _ dport: Int, _ payload: Data) -> Void
+typealias SocksPacketHandler = (_ up: Bool, _ proto: Int, _ srcIp: String, _ sport: Int,
+                                _ dstIp: String, _ dport: Int, _ payload: Data) -> Void
 
 final class Socks5Server {
     private let port: Int
@@ -178,6 +178,9 @@ final class Socks5Server {
         }
         log("TCP CONNECT <- \(clientIp) -> \(dstIp):\(dstPort)")
 
+        // 局部拷贝，供泵送线程闭包捕获（escaping 闭包不能隐式引用 self 属性）
+        let report = onPacket
+
         // ---- 双向泵送（各占一线程循环转发 + 上报；信号量等待两端结束） ----
         let upSema = DispatchSemaphore(value: 0)
         let downSema = DispatchSemaphore(value: 0)
@@ -187,7 +190,7 @@ final class Socks5Server {
                 let n = buf.withUnsafeMutableBytes { read(c, $0.baseAddress, 16384) }
                 if n <= 0 { break }
                 let chunk = Data(buf[0..<Int(n)])
-                onPacket(true, IpPacket.protoTCP, clientIp, clientPort, dstIp, dstPort, chunk)
+                report(true, IpPacket.protoTCP, clientIp, clientPort, dstIp, dstPort, chunk)
                 guard writeAll(tfd, chunk) else { break }
             }
             shutdown(tfd, SHUT_WR)
@@ -199,7 +202,7 @@ final class Socks5Server {
                 let n = buf.withUnsafeMutableBytes { read(tfd, $0.baseAddress, 16384) }
                 if n <= 0 { break }
                 let chunk = Data(buf[0..<Int(n)])
-                onPacket(false, IpPacket.protoTCP, dstIp, dstPort, clientIp, clientPort, chunk)
+                report(false, IpPacket.protoTCP, dstIp, dstPort, clientIp, clientPort, chunk)
                 guard writeAll(c, chunk) else { break }
             }
             shutdown(c, SHUT_WR)
@@ -281,7 +284,7 @@ fileprivate final class Socks5UdpAssociate {
         let rl = Array(relays.values)
         relays.removeAll()
         lock.unlock()
-        close(serverSock)
+        Darwin.close(serverSock)      // 本方法名遮蔽全局 close(unistd)，需显式模块前缀
         rl.forEach { $0.close() }
     }
 
@@ -387,7 +390,7 @@ fileprivate final class Socks5UdpRelay {
         let f = fd
         fd = -1
         lock.unlock()
-        if f >= 0 { close(f) }
+        if f >= 0 { Darwin.close(f) }     // 本方法名遮蔽全局 close(unistd)
     }
 
     /// 首次使用时解析目标 + 创建 socket + 启动回包线程；失败不再重试
@@ -614,7 +617,7 @@ private func readFully(_ fd: Int32, _ n: Int) -> Data? {
         let want = n - out.count
         let r = buf.withUnsafeMutableBytes { read(fd, $0.baseAddress, want) }
         if r <= 0 { return nil }
-        out.append(buf.prefix(Int(r)))
+        out.append(contentsOf: buf.prefix(Int(r)))
     }
     return out
 }

@@ -64,7 +64,7 @@ private final class WsProbe: NSObject, URLSessionWebSocketDelegate {
 final class AppModel: ObservableObject {
     @Published var servers: [ServerPreset] = defaultServers()
     @Published var selectedIndex = 0
-    @Published var tokenText = ""
+    @Published var apiKeyText = ""
     @Published var portText = "1080"
     @Published var uiTick = 0               // 每秒/状态变更自增，驱动 UI 刷新
 
@@ -77,7 +77,7 @@ final class AppModel: ObservableObject {
 
     init() {
         let d = UserDefaults.standard
-        tokenText = d.string(forKey: "token") ?? ""
+        apiKeyText = d.string(forKey: "api_key") ?? ""
         portText = d.string(forKey: "port") ?? "1080"
         if let name = d.string(forKey: "serverName"),
            let i = servers.firstIndex(where: { $0.name == name }) {
@@ -171,10 +171,10 @@ final class AppModel: ObservableObject {
         guard !running else { return }
         let preset = currentServer()
         let port = Int(portText.trimmingCharacters(in: .whitespaces)) ?? 1080
-        let token = tokenText.trimmingCharacters(in: .whitespaces)
+        let apiKey = apiKeyText.trimmingCharacters(in: .whitespaces)
 
         UserDefaults.standard.set(preset.name, forKey: "serverName")
-        UserDefaults.standard.set(token, forKey: "token")
+        UserDefaults.standard.set(apiKey, forKey: "api_key")
         UserDefaults.standard.set(String(port), forKey: "port")
 
         State.shared.setListenPort(port)
@@ -182,7 +182,7 @@ final class AppModel: ObservableObject {
         FlowHub.shared.clear()
         State.shared.log("=== 启动（转发器 \(preset.url)，端口 \(port)）===")
 
-        let up = WsUploader(urlString: preset.url, token: token) { State.shared.log($0) }
+        let up = WsUploader(urlString: preset.url, apiKey: apiKey) { State.shared.log($0) }
         uploader = up
         up.start()
 

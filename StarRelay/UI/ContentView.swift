@@ -3,7 +3,7 @@ import Foundation
 import Combine
 
 /// 主界面（对齐安卓 activity_main 单列布局）：
-/// 转发器服务器下拉 → Token/端口 → 启动/停止 → 提示 → 状态行 → 拓扑图(大) → 日志(小)
+/// 转发器服务器下拉 → 房间Key/端口 → 启动/停止 → 提示 → 状态行 → 拓扑图(大) → 日志(小)
 struct ContentView: View {
     @StateObject private var model = AppModel()
     private let secondTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -18,7 +18,7 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 7) {
             serverHeader
-            tokenPortRow
+            keyPortRow
             controlRow
             frontTip
             hintText
@@ -66,11 +66,11 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Token / 端口
-    private var tokenPortRow: some View {
+    // MARK: - 房间Key / 端口
+    private var keyPortRow: some View {
         HStack(spacing: 6) {
-            Text("Token").font(.system(size: 13)).foregroundColor(txtMain)
-            field(text: $model.tokenText, placeholder: "可选", flex: true)
+            Text("房间Key").font(.system(size: 13)).foregroundColor(txtMain)
+            field(text: $model.apiKeyText, placeholder: "32位hex(留空=调试房间)", flex: true)
                 .disabled(model.running)
             Text("  端口 ").font(.system(size: 13)).foregroundColor(txtMain)
             field(text: $model.portText, placeholder: "1080", flex: false)

@@ -1,12 +1,12 @@
 import Foundation
 
 /// WebSocket 逐包上报器（等效安卓 WsUploader.kt / 转发器 WsMirrorServer 协议兼容）：
-///   连接 ws://服务器:1082，可选鉴权 {"type":"auth","token":"..."}；
+///   连接 ws://服务器:1082，鉴权 {"type":"auth","api_key":"32位hex"}（api_key 既是鉴权凭据也是房间号）；
 ///   每包一条 {"batch":[{"data":"base64(完整IP报文)"}]}，单线程保证顺序逐条发送；
 ///   断线自动重连，重连期间队列积压（超限丢最旧）。
 final class WsUploader: NSObject, URLSessionWebSocketDelegate {
     private let url: URL
-    private let token: String
+    private let apiKey: String
     private let log: (String) -> Void
 
     private let lock = NSLock()
@@ -21,9 +21,9 @@ final class WsUploader: NSObject, URLSessionWebSocketDelegate {
     private var lastSendTime = Date.distantPast
     private var pendingSema: DispatchSemaphore?
 
-    init(urlString: String, token: String, log: @escaping (String) -> Void) {
+    init(urlString: String, apiKey: String, log: @escaping (String) -> Void) {
         self.url = URL(string: urlString) ?? URL(string: "ws://127.0.0.1:1082")!
-        self.token = token
+        self.apiKey = apiKey
         self.log = log
         super.init()
     }
@@ -142,9 +142,9 @@ final class WsUploader: NSObject, URLSessionWebSocketDelegate {
             return false
         }
 
-        // 鉴权（若配置了 token）必须最先发送
-        if !token.isEmpty {
-            let ok = sendText("{\"type\":\"auth\",\"token\":\"\(token)\"}")
+        // 鉴权（若配置了房间Key）必须最先发送
+        if !apiKey.isEmpty {
+            let ok = sendText("{\"type\":\"auth\",\"api_key\":\"\(apiKey)\"}")
             if !ok {
                 markDisconnected("鉴权失败")
                 cancelTask()

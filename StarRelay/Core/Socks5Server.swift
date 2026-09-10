@@ -75,7 +75,9 @@ final class Socks5Server {
         lock.unlock()
 
         if lf >= 0 { close(lf) }
-        fds.forEach { close($0) }
+        // 只 shutdown 不 close：fd 的所有权归其连接线程（handleClient 收尾时 close），
+        // 否则内核会立即复用该 fd 号，第二次 close 可能关掉无关的活跃 socket。
+        fds.forEach { _ = shutdown($0, SHUT_RDWR) }
         assocList.forEach { $0.close() }
         log("SOCKS5 已停止")
     }
@@ -368,6 +370,7 @@ fileprivate final class Socks5UdpAssociate {
     }
 
     private func handleClientDatagram(_ data: Data) {
+        guard !isClosed() else { return }
         guard data.count >= 4 else { return }
         let bytes = [UInt8](data)
         let frag = bytes[2]
@@ -400,6 +403,10 @@ fileprivate final class Socks5UdpAssociate {
 
         let key = "\(targetHost):\(dport)"
         lock.lock()
+        if closed {                       // 会话已在 close() 中清表：不能再新建 relay（否则漏 close → 泄漏/悬垂）
+            lock.unlock()
+            return
+        }
         var relay = relays[key]
         if relay == nil {
             // 超上限先清理空闲 relay，仍满则丢弃新目标（保线程数可控，不崩溃）
@@ -408,7 +415,7 @@ fileprivate final class Socks5UdpAssociate {
                 _ = sweepIdleRelays()
                 lock.lock()
             }
-            if relays.count >= relayMax {
+            if closed || relays.count >= relayMax {
                 lock.unlock()
                 return
             }
@@ -427,7 +434,9 @@ fileprivate final class Socks5UdpAssociate {
 
 /// 每目标一个 UDP socket + 回包线程（等效安卓 relays / startReplyLoop）
 fileprivate final class Socks5UdpRelay {
-    private unowned let associate: Socks5UdpAssociate
+    // 弱引用：associate 强持有 relays（本对象），若此处用 unowned，
+    // 会话先释放时本线程再访问 associate 会直接崩溃（硬 SIGABRT）。
+    private weak var associate: Socks5UdpAssociate?
     private let targetHost: String
     private let targetPort: Int
 
@@ -465,20 +474,28 @@ fileprivate final class Socks5UdpRelay {
     }
 
     /// 首次使用时解析目标 + 创建 socket + 启动回包线程；失败不再重试
+    /// 注意：DNS/建 socket 放在锁外，避免阻塞回包线程（原实现在持锁时调 getaddrinfo 会卡住数秒）
     func prepareIfNeeded() -> Bool {
         lock.lock()
         if prepared { let ok = fd >= 0; lock.unlock(); return ok }
         if failed { lock.unlock(); return false }
+        lock.unlock()
+
         guard let ip = resolveIPv4(targetHost, SOCK_DGRAM) else {
-            failed = true
-            lock.unlock()
+            lock.lock(); failed = true; lock.unlock()
             return false
         }
         let s = socket(AF_INET, SOCK_DGRAM, 0)
         guard s >= 0 else {
-            failed = true
-            lock.unlock()
+            lock.lock(); failed = true; lock.unlock()
             return false
+        }
+        lock.lock()
+        if prepared {                       // 并发下已被准备好，丢弃本次新建的 socket
+            let ok = fd >= 0
+            lock.unlock()
+            Darwin.close(s)
+            return ok
         }
         fd = s
         targetIp4 = ip
@@ -514,6 +531,8 @@ fileprivate final class Socks5UdpRelay {
         var buf = [UInt8](repeating: 0, count: 65535)
         var idleExit = false
         while true {
+            // 会话已整体释放则退出；本轮持强引用，保证下面所有 associate 访问都安全
+            guard let assoc = associate else { break }
             lock.lock()
             if fd < 0 { lock.unlock(); break }
             let s = fd
@@ -521,8 +540,8 @@ fileprivate final class Socks5UdpRelay {
             if !pollReadable(s, 1000) {
                 lock.lock(); let f = fd; lock.unlock()
                 if f < 0 { break }                              // 已被 close
-                if associate.isClosed() { break }               // 会话整体关闭
-                if Date().timeIntervalSince1970 - lastActive() > associate.relayIdleSec {
+                if assoc.isClosed() { break }                   // 会话整体关闭
+                if Date().timeIntervalSince1970 - lastActive() > assoc.relayIdleSec {
                     idleExit = true                             // 空闲自退
                     break
                 }
@@ -538,7 +557,7 @@ fileprivate final class Socks5UdpRelay {
                 }
             }
             if n <= 0 {
-                if associate.isClosed() { break }
+                if assoc.isClosed() { break }
                 continue
             }
             touchActive()
@@ -547,7 +566,7 @@ fileprivate final class Socks5UdpRelay {
             let ra = ipv4Bytes(src)
             var replyTo: sockaddr_in
             lock.lock()
-            replyTo = associate.currentClient() ?? sockaddr4(ip: "0.0.0.0", port: 0)
+            replyTo = assoc.currentClient() ?? sockaddr4(ip: "0.0.0.0", port: 0)
             let tIp = targetIp4
             let tPort = targetPort
             lock.unlock()
@@ -562,19 +581,19 @@ fileprivate final class Socks5UdpRelay {
             head[9] = UInt8(tPort & 0xFF)
             let reply = Data(head) + payload
 
-            associate.onPacket(false, IpPacket.protoUDP, tIp, tPort,
-                               associate.clientIp, Int(replyTo.sin_port.bigEndian), payload)
+            assoc.onPacket(false, IpPacket.protoUDP, tIp, tPort,
+                           assoc.clientIp, Int(replyTo.sin_port.bigEndian), payload)
 
             _ = reply.withUnsafeBytes { rb -> ssize_t in
                 withUnsafePointer(to: &replyTo) {
                     $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                        sendto(associate.serverSock, rb.baseAddress, reply.count, 0, $0,
+                        sendto(assoc.serverSock, rb.baseAddress, reply.count, 0, $0,
                                socklen_t(MemoryLayout<sockaddr_in>.size))
                     }
                 }
             }
         }
-        if idleExit { associate.relayIdle(self) }   // 空闲自退：把自己从会话表中摘除
+        if idleExit { associate?.relayIdle(self) }   // 空闲自退：把自己从会话表中摘除
     }
 }
 

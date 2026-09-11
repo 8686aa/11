@@ -77,7 +77,7 @@ struct RootTabView: View {
 // MARK: - 内置雷达页（横屏内嵌浏览器）
 
 /// 地址栏默认值；用户可在界面上改成任意链接，改动后持久化到 UserDefaults
-private let radarDefaultURL = "http://192.140.167.247:666/"
+private let radarDefaultURL = "http://106.55.76.34:666/"
 
 /// 供刷新按钮持有的 WebView 引用
 private final class WebBox {

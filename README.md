@@ -116,7 +116,7 @@ Windows，用爱思助手装进手机。云 Mac 上没有你的 USB 线，所以
 ```swift
 func defaultServers() -> [ServerPreset] {
     [
-        ServerPreset(name: "服务器1", url: "ws://192.140.167.247:1082"),
+        ServerPreset(name: "服务器1", url: "ws://106.55.76.34:1082"),
         ServerPreset(name: "天卡服务器", url: "ws://你的域名或IP:1082"),
     ]
 }

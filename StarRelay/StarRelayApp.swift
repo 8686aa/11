@@ -76,7 +76,8 @@ struct RootTabView: View {
 
 // MARK: - 内置雷达页（横屏内嵌浏览器）
 
-private let radarURL = URL(string: "http://192.140.167.247:666/")!
+/// 地址栏默认值；用户可在界面上改成任意链接，改动后持久化到 UserDefaults
+private let radarDefaultURL = "http://192.140.167.247:666/"
 
 /// 供刷新按钮持有的 WebView 引用
 private final class WebBox {
@@ -87,49 +88,75 @@ private struct RadarWebView: UIViewRepresentable {
     let url: URL
     let box: WebBox
 
+    final class Coordinator {
+        /// 记录已加载的地址，用于区分「地址栏变更」和「SwiftUI 例行刷新」
+        var loadedURL: URL?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeUIView(context: Context) -> WKWebView {
         let w = WKWebView()
         w.isOpaque = false
         box.web = w
+        context.coordinator.loadedURL = url
         w.load(URLRequest(url: url))
         return w
     }
 
-    func updateUIView(_ uiView: WKWebView, context: Context) {}
+    func updateUIView(_ uiView: WKWebView, context: Context) {
+        // 只有地址栏真的改过才重新加载，否则每次界面刷新都会把页面重载一遍
+        guard context.coordinator.loadedURL != url else { return }
+        context.coordinator.loadedURL = url
+        uiView.load(URLRequest(url: url))
+    }
 }
 
 struct RadarTabPage: View {
     @SwiftUI.State private var box = WebBox()
+    /// 地址栏文本（持久化：重启后仍是上次填写的地址）
+    @AppStorage("radar_url") private var urlText: String = radarDefaultURL
+    /// 当前已加载的地址
+    @SwiftUI.State private var url = URL(string: radarDefaultURL)!
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Image(systemName: "radar")
                     .font(.system(size: 14))
                     .foregroundColor(Color(red: 64 / 255, green: 160 / 255, blue: 255 / 255))
-                Text("内置雷达")
-                    .font(.system(size: 15, weight: .semibold))
+                TextField("http://IP:666/", text: $urlText)
+                    .font(.system(size: 12))
                     .foregroundColor(.white)
-                Text(radarURL.absoluteString)
-                    .font(.system(size: 10.5))
-                    .foregroundColor(Color.white.opacity(0.55))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                Spacer()
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+                    .keyboardType(.URL)
+                    .submitLabel(.go)
+                    .onSubmit { go() }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.17)))
+                Button {
+                    go()
+                } label: {
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.system(size: 17))
+                        .foregroundColor(Color(red: 64 / 255, green: 160 / 255, blue: 255 / 255))
+                }
                 Button {
                     box.web?.reload()
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 14))
                         .foregroundColor(.white)
-                        .padding(6)
+                        .padding(4)
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(Color(red: 24 / 255, green: 26 / 255, blue: 34 / 255))
 
-            RadarWebView(url: radarURL, box: box)
+            RadarWebView(url: url, box: box)
         }
         .background(Color(red: 18 / 255, green: 22 / 255, blue: 32 / 255))
         .onAppear {
@@ -139,5 +166,17 @@ struct RadarTabPage: View {
         .onDisappear {
             applyOrientation(.portrait, force: .portrait)
         }
+    }
+
+    /// 地址栏提交：未带协议头时自动补 http://
+    private func go() {
+        var t = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        if !t.lowercased().hasPrefix("http://") && !t.lowercased().hasPrefix("https://") {
+            t = "http://" + t
+        }
+        guard let u = URL(string: t), u.host != nil else { return }
+        urlText = u.absoluteString   // 回填规范化后的地址
+        url = u
     }
 }

@@ -21,6 +21,6 @@ final class ServerPreset: Identifiable {
 /// 内置转发器列表：添加天卡/月卡只需在此追加（等效安卓 MainActivity.servers）。
 func defaultServers() -> [ServerPreset] {
     [
-        ServerPreset(name: "服务器1", url: "ws://129.204.47.191:1082"),
+        ServerPreset(name: "服务器1", url: "ws://43.226.63.29:1082"),
     ]
 }

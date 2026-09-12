@@ -3,7 +3,7 @@ import Foundation
 import Combine
 
 /// 主界面（对齐安卓 activity_main 单列布局）：
-/// 转发器服务器下拉 → 房间Key/端口 → 启动/停止 → 提示 → 状态行 → 拓扑图(大) → 日志(小)
+/// 服务器IP(手填) → 房间Key/端口 → 启动/停止 → 提示 → 状态行 → 拓扑图(大) → 日志(小)
 struct ContentView: View {
     @StateObject private var model = AppModel()
     private let secondTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -34,35 +34,27 @@ struct ContentView: View {
         .onDisappear { model.viewDidDisappear() }
     }
 
-    // MARK: - 转发器服务器（组合框：内置 ws，不可手填；自动测速挂在项名）
+    // MARK: - 转发器服务器（手填 IP；端口固定：上报 ws 1082 / 雷达 http 666）
     private var serverHeader: some View {
-        HStack {
-            Text("转发器服务器")
+        HStack(spacing: 6) {
+            Text("服务器IP")
                 .font(.system(size: 13))
                 .foregroundColor(txtMain)
-            Spacer()
-            Menu {
-                ForEach(0..<model.servers.count, id: \.self) { i in
-                    Button {
-                        model.selectServer(i)
-                    } label: {
-                        Text(model.servers[i].label()).font(.system(size: 13))
-                    }
-                }
-            } label: {
-                HStack(spacing: 5) {
-                    Text(model.currentServer().label())
-                        .font(.system(size: 13))
-                        .foregroundColor(.white)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 9))
-                        .foregroundColor(.white.opacity(0.6))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(RoundedRectangle(cornerRadius: 7).fill(fieldBg))
-            }
-            .disabled(model.running)
+            TextField("如 192.140.179.181", text: Binding(
+                get: { model.serverHost },
+                set: { model.setServerHost($0) }))
+                .font(.system(size: 13))
+                .foregroundColor(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 6).fill(fieldBg))
+                .frame(maxWidth: .infinity)
+                .keyboardType(.numbersAndPunctuation)
+                .disabled(model.running)
+            Text(model.latLabel())
+                .font(.system(size: 11))
+                .foregroundColor(txtSub)
+                .frame(minWidth: 46, alignment: .trailing)
         }
     }
 

@@ -109,20 +109,19 @@ Windows，用爱思助手装进手机。云 Mac 上没有你的 USB 线，所以
 > - 嫌自己折腾，也可找“代签名/代打包”商家：把工程 + UDID 发过去，
 >   对方导出 ipa 发回，用第 6 步安装即可（注意别泄露 Apple ID 密码）。
 
-## 服务器列表在哪改
+## 服务器地址在哪改
 
-编辑 `StarRelay/Core/ServerPreset.swift` 的 `defaultServers()`：
+界面上「服务器IP」直接手填，**只有 IP 可改**，端口固定（上报 ws 1082 / 雷达 http 666）。
+
+要改内置默认 IP 或固定端口，编辑 `StarRelay/Core/ServerPreset.swift`：
 
 ```swift
-func defaultServers() -> [ServerPreset] {
-    [
-        ServerPreset(name: "服务器1", url: "ws://82.156.54.118:1082"),
-        ServerPreset(name: "天卡服务器", url: "ws://你的域名或IP:1082"),
-    ]
-}
+static let wsPort = 1082                      // 转发器上报端口（固定）
+static let radarHTTPPort = 666                // 雷达服务端口（固定）
+static let defaultHost = "192.140.179.181"    // 内置默认服务器 IP
 ```
 
-下拉框不可手填，10 秒自动测当前选中项，延迟显示在名称上：`服务器1(12ms)` / `(1.2s)` / `(离线)`。
+输入框不可手填端口；10 秒自动测当前 IP，延迟显示在输入框右侧：`12ms` / `1.2s` / `离线`。
 
 ## 使用形态（两台 iPhone）
 

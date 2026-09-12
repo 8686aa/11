@@ -1,28 +1,31 @@
 import Foundation
 
-/// 预置转发器（内置 ws 地址，不可修改）。测速结果挂在名称上，如 服务器1(12ms)。等效安卓 ServerPreset。
+/// 转发器服务器：**只有 IP 由用户填写**，端口固定（上报 ws 1082 / 雷达 http 666）。
+/// 测速结果挂在 label() 上，如 192.140.179.181(12ms)。等效安卓 ServerPreset。
 final class ServerPreset: Identifiable {
+    /// 转发器上报(ws)端口，固定不可改
+    static let wsPort = 1082
+    /// 雷达服务（HTTP）端口，固定不可改；与 sol_radar_local 的 PORT 默认值一致
+    static let radarHTTPPort = 666
+    /// 内置默认服务器 IP
+    static let defaultHost = "192.140.179.181"
+
     let id = UUID()
-    let name: String
-    let url: String
+    /// 用户填写的服务器 IP（或主机名）
+    let host: String
     /// 测速延迟 ms；-1 = 未测/离线（仅主线程/UI 更新）
     var latMs: Int64 = -1
 
-    init(name: String, url: String) {
-        self.name = name
-        self.url = url
+    init(host: String) {
+        self.host = host
     }
+
+    /// 转发器上报地址：ws://<ip>:1082
+    var url: String { "ws://\(host):\(ServerPreset.wsPort)" }
 
     func label() -> String {
-        latMs < 0 ? name : "\(name)(\(formatLat(latMs)))"
+        latMs < 0 ? host : "\(host)(\(formatLat(latMs)))"
     }
-}
-
-/// 内置转发器列表：添加天卡/月卡只需在此追加（等效安卓 MainActivity.servers）。
-func defaultServers() -> [ServerPreset] {
-    [
-        ServerPreset(name: "服务器1", url: "ws://192.140.179.181:1082"),
-    ]
 }
 
 // MARK: - 雷达服务地址推导
@@ -31,9 +34,6 @@ func defaultServers() -> [ServerPreset] {
 // 这里按约定把内置的 ws 地址换算成雷达服务基址，避免再为每个服务器多配一个字段。
 // 若服务端改了 666 端口，需同步改 radarHTTPPort。
 extension ServerPreset {
-    /// 雷达服务（HTTP）端口，与 sol_radar_local 的 PORT 默认值一致
-    static let radarHTTPPort = 666
-
     /// 雷达服务基址：ws://host:1082 -> http://host:666（wss 则得到 https）
     var radarBaseURL: URL? {
         guard var c = URLComponents(string: url), c.host != nil else { return nil }

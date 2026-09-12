@@ -60,14 +60,14 @@ private final class WsProbe: NSObject, URLSessionWebSocketDelegate {
     }
 }
 
-/// 主界面状态/编排：等效安卓 MainActivity（服务器下拉 + 自动测速 + 启停）。
+/// 主界面状态/编排：等效安卓 MainActivity（服务器IP输入 + 自动测速 + 启停）。
 final class AppModel: ObservableObject {
-    @Published var servers: [ServerPreset] = defaultServers()
-    @Published var selectedIndex = 0
+    @Published var serverHost = ServerPreset.defaultHost   // 服务器 IP：仅此一项可改，端口固定
     @Published var apiKeyText = ""
     @Published var portText = "1080"
     @Published var uiTick = 0               // 每秒/状态变更自增，驱动 UI 刷新
 
+    private var server = ServerPreset(host: ServerPreset.defaultHost)
     private var socks: Socks5Server?
     private var uploader: WsUploader?
     private var probe: WsProbe?
@@ -79,10 +79,9 @@ final class AppModel: ObservableObject {
         let d = UserDefaults.standard
         apiKeyText = d.string(forKey: "api_key") ?? ""
         portText = d.string(forKey: "port") ?? "1080"
-        if let name = d.string(forKey: "serverName"),
-           let i = servers.firstIndex(where: { $0.name == name }) {
-            selectedIndex = i
-        }
+        let host = d.string(forKey: "server_host") ?? ServerPreset.defaultHost
+        serverHost = host
+        server = ServerPreset(host: host)
     }
 
     // MARK: - 每秒 UI tick（等效安卓 poller）
@@ -105,18 +104,20 @@ final class AppModel: ObservableObject {
         testTimer = nil
     }
 
-    // MARK: - 服务器下拉
-    func selectServer(_ i: Int) {
-        guard !running, i >= 0, i < servers.count else { return }
-        selectedIndex = i
-        State.shared.log("选择服务器: \(servers[i].label())")
+    // MARK: - 服务器 IP（端口固定，仅 IP 可改）
+    /// 输入框每次变化都会调到这里：换了 IP 就重建服务器对象并清掉旧测速结果。
+    func setServerHost(_ text: String) {
+        serverHost = text
+        let host = text.trimmingCharacters(in: .whitespaces)
+        UserDefaults.standard.set(host, forKey: "server_host")
+        guard !running, host != server.host else { return }
+        server = ServerPreset(host: host)
+        State.shared.setLatMs(-1)
+        scheduleAutoTest(immediate: true)   // 重新测速（0.3s 后触发，等于按输入停顿去抖）
         uiTick &+= 1
     }
 
-    func currentServer() -> ServerPreset {
-        let i = min(max(selectedIndex, 0), servers.count - 1)
-        return servers[i]
-    }
+    func currentServer() -> ServerPreset { server }
 
     /// 状态行使用的延迟文案：测速中（未出结果）→ 具体延迟 → 离线
     func latLabel() -> String {
@@ -125,7 +126,7 @@ final class AppModel: ObservableObject {
         return probe == nil ? "离线" : "测速中…"
     }
 
-    // MARK: - 自动测速（仅未启动时循环：10s 测当前选中项，结果挂在项名上；等效安卓 testSelectedServer）
+    // MARK: - 自动测速（仅未启动时循环：10s 测当前 IP，结果挂在服务器对象上；等效安卓 testSelectedServer）
     func scheduleAutoTest(immediate: Bool) {
         guard !running else { return }
         testTimer?.invalidate()
@@ -142,26 +143,22 @@ final class AppModel: ObservableObject {
     func autoTest() {
         guard !running, probe == nil else { return }
         let preset = currentServer()
-        let urlStr = preset.url
-        guard let u = URL(string: urlStr) else {
+        guard let u = URL(string: preset.url), let h = u.host, !h.isEmpty else {
             preset.latMs = -1
             State.shared.setLatMs(-1)
             uiTick &+= 1
             return
         }
-        let idx = selectedIndex
         let p = WsProbe(url: u) { [weak self] ok, ms in
-            DispatchQueue.main.async { self?.applyTest(ok: ok, ms: ms, index: idx) }
+            DispatchQueue.main.async { self?.applyTest(ok: ok, ms: ms) }
         }
         probe = p
         p.run()
     }
 
-    private func applyTest(ok: Bool, ms: Int64, index: Int) {
+    private func applyTest(ok: Bool, ms: Int64) {
         probe = nil
-        guard index < servers.count else { return }
-        let preset = servers[index]
-        preset.latMs = ok ? ms : -1
+        server.latMs = ok ? ms : -1
         State.shared.setLatMs(ok ? ms : -1)
         uiTick &+= 1
     }
@@ -173,7 +170,14 @@ final class AppModel: ObservableObject {
         let port = Int(portText.trimmingCharacters(in: .whitespaces)) ?? 1080
         let apiKey = apiKeyText.trimmingCharacters(in: .whitespaces)
 
-        UserDefaults.standard.set(preset.name, forKey: "serverName")
+        // 服务器 IP 由用户手填，空/非法时直接拦下，避免拼出 ws://:1082 这种地址
+        guard !preset.host.isEmpty, URL(string: preset.url)?.host?.isEmpty == false else {
+            State.shared.setLastError("请先填写服务器IP（端口固定 1082）")
+            State.shared.log("启动中止：服务器IP 为空")
+            uiTick &+= 1
+            return
+        }
+
         UserDefaults.standard.set(apiKey, forKey: "api_key")
         UserDefaults.standard.set(String(port), forKey: "port")
 

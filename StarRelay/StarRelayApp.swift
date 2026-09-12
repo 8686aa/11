@@ -70,6 +70,10 @@ struct RootTabView: View {
                 applyOrientation(.portrait, force: .portrait)
             }
         }
+        // 首页启动校验通过 -> 自动切到内置雷达 Tab（地址由 RadarTabPage 自己加载）
+        .onReceive(RadarRouter.shared.$request.compactMap { $0 }) { _ in
+            tab = 1
+        }
         .onAppear { applyOrientation(.portrait, force: .portrait) }
     }
 }
@@ -77,7 +81,24 @@ struct RootTabView: View {
 // MARK: - 内置雷达页（横屏内嵌浏览器）
 
 /// 地址栏默认值；用户可在界面上改成任意链接，改动后持久化到 UserDefaults
-private let radarDefaultURL = "http://43.226.63.29:666/share/ERRJ-4NN8"
+private let radarDefaultURL = "http://192.140.167.247:666"
+
+// MARK: - 启动校验通过后要打开的雷达地址
+
+/// 一次「打开雷达」请求。每次都用新的 id，保证同一地址重复打开也能触发 onChange。
+struct RadarOpenRequest: Equatable {
+    let id = UUID()
+    let url: String
+}
+
+/// 首页(AppModel)在 key 校验通过后调用 open(_:)；内置雷达 Tab 加载该地址，
+/// RootTabView 同时切到该 Tab —— 两者各自监听同一个发布者，不依赖调用顺序。
+final class RadarRouter: ObservableObject {
+    static let shared = RadarRouter()
+    @Published var request: RadarOpenRequest?
+    private init() {}
+    func open(_ url: String) { request = RadarOpenRequest(url: url) }
+}
 
 /// 供刷新按钮持有的 WebView 引用
 private final class WebBox {
@@ -162,6 +183,12 @@ struct RadarTabPage: View {
         .onAppear {
             // 跟随设备方向旋转；若设备正横放则 attemptRotation 会立即转横
             applyOrientation(.allButUpsideDown, force: nil)
+            // TabView 的子页可能在切到该 Tab 时才构建，此时 onReceive 收不到已发出的请求，这里补一次
+            if let req = RadarRouter.shared.request { open(req) }
+        }
+        // 首页启动校验通过 -> 直接把本页地址栏换成该 key 的分享链接并加载
+        .onReceive(RadarRouter.shared.$request.compactMap { $0 }) { req in
+            open(req)
         }
         .onDisappear {
             applyOrientation(.portrait, force: .portrait)
@@ -177,6 +204,13 @@ struct RadarTabPage: View {
         }
         guard let u = URL(string: t), u.host != nil else { return }
         urlText = u.absoluteString   // 回填规范化后的地址
+        url = u
+    }
+
+    /// 载入外部请求的雷达地址（来自首页启动校验通过后推送的分享链接）
+    private func open(_ req: RadarOpenRequest) {
+        guard let u = URL(string: req.url), u.host != nil else { return }
+        urlText = u.absoluteString
         url = u
     }
 }

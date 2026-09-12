@@ -212,6 +212,7 @@ final class AppModel: ObservableObject {
             testTimer?.invalidate()
             testTimer = nil
             State.shared.log("提示：小火箭 SOCKS5 = \(State.shared.localIp):\(port)")
+            openRadarPage(preset: preset, apiKey: apiKey)
         } else {
             State.shared.setRunning(false)
             State.shared.setLastError("SOCKS5 未启动：端口 \(port) 监听失败，请改端口或看下方日志的 errno")
@@ -219,6 +220,46 @@ final class AppModel: ObservableObject {
             uploader = nil
         }
         uiTick &+= 1
+    }
+
+    // MARK: - 启动后校验 key → 让内置雷达 Tab 打开该 key 对应的分享页
+    // 转发器(ws://host:1082)与雷达服务(http://host:666)同机同 IP，地址由 ServerPreset 换算。
+    private func openRadarPage(preset: ServerPreset, apiKey: String) {
+        guard !apiKey.isEmpty else {
+            State.shared.log("[雷达] 房间Key 为空（调试房间），不自动打开雷达页")
+            return
+        }
+        guard let url = preset.shareByKeyURL(apiKey: apiKey) else {
+            State.shared.log("[雷达] 无法从 \(preset.url) 推导雷达服务地址，跳过自动打开")
+            return
+        }
+        State.shared.log("[雷达] 校验 key …")
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 6
+        req.cachePolicy = .reloadIgnoringLocalCacheData
+        URLSession.shared.dataTask(with: req) { data, _, error in
+            var link: String?
+            var message: String
+            if let error = error {
+                message = "校验失败：\(error.localizedDescription)"
+            } else if let data = data,
+                      let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+                if (obj["ok"] as? Bool) == true, let text = obj["url"] as? String {
+                    link = text
+                    let name = obj["username"] as? String ?? ""
+                    let code = obj["code"] as? String ?? ""
+                    message = "key 校验通过（\(name) / \(code)），打开雷达页"
+                } else {
+                    message = "校验失败：\(obj["error"] as? String ?? "未知错误")"
+                }
+            } else {
+                message = "校验失败：雷达服务无响应"
+            }
+            DispatchQueue.main.async {
+                State.shared.log("[雷达] \(message)")
+                if let link = link { RadarRouter.shared.open(link) }
+            }
+        }.resume()
     }
 
     func stop() {
